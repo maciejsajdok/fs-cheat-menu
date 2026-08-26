@@ -1,0 +1,5 @@
+# FSO scripts and tables are CRLF by convention, and the working copies here are
+# hardlinked into a live game install. Any EOL rewrite on checkout would both
+# change the files the game reads and break those links, so store every file
+# byte-for-byte and let git do no conversion at all.
+* -text

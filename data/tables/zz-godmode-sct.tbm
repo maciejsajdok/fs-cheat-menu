@@ -1,0 +1,34 @@
+; zz-godmode-sct.tbm - personal cheat menu, loaded by every mod in this library.
+; Shift+Alt+I opens the menu; number keys pick entries, ESC closes.
+; Uninstall: delete this file and data/scripts/zz_godmode.lua
+
+#Conditional Hooks
+
+$Application: FS2_Open
+$On Game Init:
+[[zz_godmode.lua]]
+
+$On Mission Start:
+[
+GodMode_MissionStart()
+]
+
+$State: GS_STATE_GAME_PLAY
+$On Key Pressed:
+[
+GodMode_KeyPressed(hv)
+]
++Override:
+[
+GodMode_KeyOverride(hv)
+]
+$On Frame:
+[
+GodMode_Frame()
+]
+$On HUD Draw:
+[
+GodMode_HudDraw()
+]
+
+#End
