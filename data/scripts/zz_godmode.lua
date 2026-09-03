@@ -176,6 +176,16 @@ end
 local ENGINE_MAJOR = engineMajor()
 local MODERN_API   = ENGINE_MAJOR >= 25
 
+-- ba.println does not exist before 23.0.0. The Aftermath Reboot pins FSO 22.0.0
+-- and the Wings of Dawn build is older still, so on those the read is exactly the
+-- fatal ADE index error described above - "Could not find index 'println' in type
+-- 'Base'" - and neither pcall nor try can absorb it. ba.print is present in every
+-- build in this install (17.0.1 through 26.0.0) and differs only in not adding the
+-- newline itself, so all logging goes through here rather than being version-gated.
+local function printLine(text)
+	ba.print(text .. "\n")
+end
+
 -- Every hook below runs through this. An uncaught Lua error inside an FSO hook
 -- is not a quiet failure: the engine escalates it, and a release build takes the
 -- whole game down with it. A cheat menu must never be able to do that, so each
@@ -192,7 +202,7 @@ local function guard(name, fn)
 	local text = "[GodMode] " .. name .. " failed: " .. tostring(err)
 	if not GodMode.hookErrors[text] then
 		GodMode.hookErrors[text] = true
-		pcall(function() ba.println(text) end)
+		pcall(function() printLine(text) end)
 		pcall(function() mn.sendPlainMessage(text) end)
 	end
 end
@@ -204,7 +214,7 @@ local function numberOf(fn)
 end
 
 local function log(text)
-	try(function() ba.println("[GodMode] " .. text) end)
+	try(function() printLine("[GodMode] " .. text) end)
 end
 
 local function notify(text)
