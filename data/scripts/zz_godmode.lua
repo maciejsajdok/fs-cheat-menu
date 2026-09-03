@@ -170,11 +170,17 @@ local function engineMajor()
 	return tonumber(string.match(text, "(%d+)%.%d+%.%d+")) or 0
 end
 
--- Verified against the three builds installed here: 23.2.1 has none of
--- getStringHeight / getSubsystemList / CanonicalName, 25.0.0 and 26.0.0 have all
--- three. A build we cannot identify is treated as old, which only costs polish.
+-- Checked symbol by symbol against every build in this library - 17.0.1 (Wings
+-- of Dawn), 22.0.0, 23.2.1, 25.0.0, 25.0.1, 26.0.0 - since the mods here pin
+-- different ones and The Aftermath Reboot pins 22.0.0:
+--
+--   23.0.0 added  ba.println, hu.isCommMenuOpen, ship:setFlag, ship:getFlag
+--   25.0.0 added  gr.getStringHeight, ship:getSubsystemList, sub.CanonicalName
+--
+-- A build we cannot identify is treated as old, which only costs polish.
 local ENGINE_MAJOR = engineMajor()
 local MODERN_API   = ENGINE_MAJOR >= 25
+local API_23       = ENGINE_MAJOR >= 23
 
 -- ba.println does not exist before 23.0.0. The Aftermath Reboot pins FSO 22.0.0
 -- and the Wings of Dawn build is older still, so on those the read is exactly the
@@ -259,6 +265,7 @@ end
 -- Flags this build may not accept through ship:setFlag, and the SEXP pair that
 -- does the same job. Tried only when the setFlag write does not take.
 local FLAG_SEXP = {
+	["invulnerable"]        = { on = "ship-invulnerable", off = "ship-vulnerable" },
 	["protect-ship"]        = { on = "protect-ship",      off = "unprotect-ship" },
 	["beam-protect-ship"]   = { on = "beam-protect-ship", off = "beam-unprotect-ship" },
 	["stealth"]             = { on = "ship-stealthy",     off = "ship-unstealthy" },
@@ -275,7 +282,20 @@ end
 -- silently does nothing, so read it back and fall through to the SEXP. Flags
 -- with no SEXP equivalent (the flak/laser/missile turret protections) are just
 -- skipped on builds that do not know them.
+--
+-- ship:setFlag and ship:getFlag themselves only exist from 23.0.0, so before that
+-- both are skipped outright and every flag goes down the SEXP path - a gate, not
+-- a probe, because on 22.0.0 the missing index aborts the game. The readback then
+-- returns nil, which never equals `on`, so the fall-through happens naturally.
 local function setShipFlag(s, flag, on)
+	if not API_23 then
+		local sexp = FLAG_SEXP[flag]
+		if sexp ~= nil then
+			runShipSEXP(s, on and sexp.on or sexp.off)
+		end
+		return
+	end
+
 	try(function() s:setFlag(on, flag) end)
 
 	local now = try(function() return s:getFlag(flag) end)
@@ -599,7 +619,13 @@ local function applyFlag(source, flag, ships, team)
 			if entry ~= nil then
 				entry[source] = true          -- already ours, just add the claim
 			else
-				local already = try(function() return s:getFlag(flag) end)
+				-- getFlag is 23.0.0+; without it we cannot tell whether the
+				-- mission already set the flag, so we claim the ship and let
+				-- the book keep us from writing it again every frame
+				local already = nil
+				if API_23 then
+					already = try(function() return s:getFlag(flag) end)
+				end
 				if already ~= true then
 					setShipFlag(s, flag, true)
 					book[name] = { [source] = true }
@@ -988,10 +1014,17 @@ end
 -- to attack ALSO toggled god mode, and ESC closed both menus at once. Whenever
 -- it is open the cheat menu goes inert: it claims no keys and draws nothing.
 --
--- Unlike the calls gated on MODERN_API, this one needs no version gate: the
--- symbol is present in every build in this library, 23.2.1 included (checked
--- against the binaries), so the read is safe on Blue Planet too.
+-- hu.isCommMenuOpen arrived in 23.0.0, so this needs a gate of its own rather
+-- than riding on MODERN_API: 23.2.1 through 26.0.0 have it, 22.0.0 does not, and
+-- on 22.0.0 the read is the fatal ADE index error that try cannot absorb.
+--
+-- Before 23.0.0 there is no way to ask the engine whether the comm menu is up, so
+-- the answer is a flat no and the inert behaviour is simply lost. That costs the
+-- key conflict back, but only in the one case where both menus are open at once:
+-- GodMode_KeyOverride already returns early whenever the cheat menu is closed, so
+-- the comm menu is unaffected until you open the cheat menu and then press C.
 local function commMenuOpen()
+	if not API_23 then return false end
 	return try(function() return hu.isCommMenuOpen() end) == true
 end
 
